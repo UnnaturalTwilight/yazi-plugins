@@ -8,10 +8,10 @@ end
 local function handle_gnome_uri_list(data)
     local is_cut = data:match("^cut")
     if is_cut then
-        ya.dbg("Cut", uri_list)
+        ya.dbg("Cut", data)
         require("dnd").cut_uri_list(data)
     else
-        ya.dbg("Copy", uri_list)
+        ya.dbg("Copy", data)
         require("clipboard").copy_uri_list(data)
     end
 end
@@ -29,15 +29,35 @@ local function copy_uri_list()
         copy[#copy + 1] = { mime = "x-special/gnome-copied-files", data = gnome_list, alias = "" }
     end
 
-    -- ya.dbg("Copy URI List", copy)
+    ya.dbg("Copy URI List", copy)
 
     rt.tty:queue("WriteClipboard", copy)
     rt.tty:flush()
     return true
 end
 
+local hovered_file = ya.sync(function()
+    local file = cx.active.current.hovered
+    if file then
+        return {
+            url = tostring(file.url),
+            mime = file:mime(),
+        }
+    end
+end)
+
 local function copy_file_contents()
-    local list = require("dnd").selected_uri_list()
+    local file = hovered_file()
+    if not (file and file.mime) then
+        return false
+    end
+
+    ya.dbg("Copy File Contents", file)
+
+    local data = io.open(file.url, "r"):read("*a")
+
+    rt.tty:queue("WriteClipboard", { { mime = file.mime, data = data, alias = "" } })
+    rt.tty:flush()
     return true
 end
 
