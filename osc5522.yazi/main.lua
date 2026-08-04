@@ -24,9 +24,9 @@ local function copy_uri_list()
     local uri_list = table.concat(list, "\n")
     local gnome_list = "copy\n" .. uri_list
 
-    local copy = { { mime = "text/uri-list", data = uri_list, alias = "text/plain" } }
+    local copy = { { mime = "text/uri-list", payload = uri_list, aliases = {"text/plain"} } }
     if gnome_list then
-        copy[#copy + 1] = { mime = "x-special/gnome-copied-files", data = gnome_list, alias = "" }
+        copy[#copy + 1] = { mime = "x-special/gnome-copied-files", payload = gnome_list, aliases = {} }
     end
 
     ya.dbg("Copy URI List", copy)
@@ -56,7 +56,7 @@ local function copy_file_contents()
 
     local data = io.open(file.url, "r"):read("*a")
 
-    rt.tty:queue("WriteClipboard", { { mime = file.mime, data = data, alias = "" } })
+    rt.tty:queue("WriteClipboard", { { mime = file.mime, payload = data, aliases = {} } })
     rt.tty:flush()
     return true
 end
@@ -74,24 +74,28 @@ function M:entry(cmd)
     end
 end
 
+local layer = ya.sync(function()
+    return tostring(cx.layer)
+end)
+
 function M:handle_clipboard_event(event)
-    if event and event.type == "mimetypes" and event.pw then
+    if event.type ~= "read" then
+		return
+	elseif event.data["."] then
         -- No harm in asking for unavailable types
-        local mimetypes = "text/plain text/uri-list x-special/gnome-copied-files code/file-list"
-        rt.tty:queue("ReadClipboard", { mimes = mimetypes, pw = event.pw, name = "Paste Event", primary = event.primary })
-        rt.tty:flush()
-    elseif event and event.type == "data" then
-        self:handle_paste(event.data)
-    end
+		local mime = layer == "input" and "text/plain" or "x-special/gnome-copied-files text/uri-list"
+		return require("clipboard").read_unsolicited(mime, event)
+	end
+    self:handle_paste(event.data)
 end
 
 function M:handle_paste(data)
-    if data["x-special/gnome-copied-files"] ~= nil then
+    if layer == "input" and data["text/plain"] then
+		ya.emit("input:feed", { data["text/plain"] })
+    elseif data["x-special/gnome-copied-files"] ~= nil then
         handle_gnome_uri_list(data["x-special/gnome-copied-files"])
     elseif data["text/uri-list"] ~= nil then
         require("clipboard").copy_uri_list(data["text/uri-list"])
-    elseif data["code/file-list"] ~= nil then
-        require("clipboard").copy_file_list(data["code/file-list"])
     end
 end
 
