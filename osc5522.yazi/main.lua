@@ -74,23 +74,19 @@ function M:entry(cmd)
     end
 end
 
-local layer = ya.sync(function()
-    return tostring(cx.layer)
-end)
-
 function M:handle_clipboard_event(event)
     if event.type ~= "read" then
 		return
 	elseif event.data["."] then
         -- No harm in asking for unavailable types
-		local mime = layer == "input" and "text/plain" or "x-special/gnome-copied-files text/uri-list"
+		local mime = tostring(cx.layer) == "input" and "text/plain" or "x-special/gnome-copied-files text/uri-list"
 		return require("clipboard").read_unsolicited(mime, event)
 	end
     self:handle_paste(event.data)
 end
 
 function M:handle_paste(data)
-    if layer == "input" and data["text/plain"] then
+    if tostring(cx.layer) == "input" and data["text/plain"] then
 		ya.emit("input:feed", { data["text/plain"] })
     elseif data["x-special/gnome-copied-files"] ~= nil then
         handle_gnome_uri_list(data["x-special/gnome-copied-files"])
